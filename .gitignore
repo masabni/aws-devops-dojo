@@ -1,0 +1,23 @@
+# node
+node_modules/
+dist/
+coverage/
+npm-debug.log*
+
+# env / secrets
+.env
+.env.*
+*.pem
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+.terraform.lock.hcl
+
+# os / editor
+.DS_Store
+*.swp
