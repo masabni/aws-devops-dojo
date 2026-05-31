@@ -56,3 +56,36 @@ variable "log_retention_days" {
   type        = number
   default     = 7
 }
+
+# ---- Phase 3: autoscaling ----
+# The scalable target's floor and ceiling. desired_count (above) is only the *starting*
+# task count; once autoscaling is attached it owns the number between these bounds.
+variable "min_capacity" {
+  description = "Minimum tasks autoscaling will ever run. >1 so a single AZ/task failure can't take us to zero."
+  type        = number
+  default     = 2
+}
+
+variable "max_capacity" {
+  description = "Ceiling autoscaling can scale out to. Caps the blast radius on cost during a load test."
+  type        = number
+  default     = 6
+}
+
+variable "cpu_target_percent" {
+  description = "Target-tracking setpoint: autoscaling adds/removes tasks to keep average CPU near this."
+  type        = number
+  default     = 50
+}
+
+variable "scale_out_cooldown" {
+  description = "Seconds to wait after scaling OUT before scaling out again. Short = react fast to load."
+  type        = number
+  default     = 30
+}
+
+variable "scale_in_cooldown" {
+  description = "Seconds to wait after scaling IN before scaling in again. Long = avoid flapping when load is bursty."
+  type        = number
+  default     = 120
+}

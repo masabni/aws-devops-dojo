@@ -77,4 +77,11 @@ resource "aws_ecs_service" "app" {
 
   # Don't fight the ALB: wait for the listener before creating the service.
   depends_on = [aws_lb_listener.http]
+
+  # Phase 3: once Application Auto Scaling (autoscaling.tf) owns desired_count,
+  # stop Terraform from resetting it back to var.desired_count on every apply.
+  # desired_count here is now just the INITIAL count at creation time.
+  lifecycle {
+    ignore_changes = [desired_count]
+  }
 }
