@@ -21,3 +21,4 @@ crash.log
 # os / editor
 .DS_Store
 *.swp
+/.idea
