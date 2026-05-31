@@ -2,15 +2,17 @@
 
 > Single source of truth for progress. Update this at the end of every session.
 
-**Last updated:** 2026-05-31 (Phase 3 applied — autoscaling verified; ECS LIVE & BILLABLE)
+**Last updated:** 2026-05-31 (Phase 3 done & code committed; ecs stack DESTROYED — $0 standing)
 
 ## Current phase
 
-**Phase 3 APPLIED and verified (real scale-out observed). Next up: Phase 4 (CI/CD, GitHub Actions).**
+**Phases 2 + 3 code complete and committed. `infra/ecs` was applied, verified, then
+DESTROYED at session end. Next up: Phase 4 (CI/CD, GitHub Actions).**
 
-> ⚠️ **BILLABLE STACK IS UP.** `infra/ecs` (ALB ~$0.0225/hr + 2 Fargate tasks) is
-> running right now. **`terraform destroy` it before ending the session:**
-> `cd infra/ecs && terraform destroy`. (Bootstrap + foundation stay up at ~$0.)
+> ✅ **Nothing billable running.** The `infra/ecs` stack (ECR/cluster/service/ALB/
+> autoscaling) was torn down — verified no ALBs, ECS clusters, ECR repos, or NAT
+> gateways remain. To resume Phase 2/3 hands-on, re-apply per `infra/ecs/README.md`
+> (apply ECR → build/push `tasklet:v1` → apply rest). Bootstrap + foundation still up at ~$0.
 
 ## Environment (live)
 
@@ -20,15 +22,14 @@
 - **VPC:** `vpc-0d19b613ce741f0f0` (`10.20.0.0/16`), NAT **disabled** (cost-safe).
   - Public subnets: `subnet-0374cd6a7b3205d80`, `subnet-0283735914e7229ab`.
   - Private subnets: `subnet-01fbbde296655135d`, `subnet-04981791c60efbb3b`.
-- **ECS (Phase 2, BILLABLE):** cluster + service `aws-devops-dojo-tasklet`, 2 Fargate
-  tasks (256 CPU / 512 MiB) in the public subnets, image `tasklet:v1`.
-  - ALB URL: http://aws-devops-dojo-tasklet-806218387.eu-central-1.elb.amazonaws.com/
-  - ECR repo: `850896627732.dkr.ecr.eu-central-1.amazonaws.com/tasklet` (keep-last-5 lifecycle).
-  - Verified: HTTP 200, `/healthz` ok, ALB round-robins both tasks (`10.20.0.163` / `10.20.1.175`).
-- **Autoscaling (Phase 3):** Application Auto Scaling on the service, min 2 / max 6,
-  target-tracking on avg CPU 50% (`autoscaling.tf`). Service has `lifecycle ignore_changes
-  = [desired_count]` so TF and autoscaling don't fight. Verified: under `ab` load CPU
-  crossed 50%, AlarmHigh → ALARM, scaling activity "Setting desired count to 3" fired.
+- **ECS / autoscaling (Phase 2+3): DESTROYED at session end — not currently running.**
+  Code lives in `infra/ecs/` (committed). When re-applied it creates: cluster + service
+  `aws-devops-dojo-tasklet` (2 Fargate tasks, 256/512, public subnets, image `tasklet:v1`),
+  internet-facing ALB, ECR repo `…/tasklet` (keep-last-5), and Application Auto Scaling
+  (min 2 / max 6, CPU target 50%, `autoscaling.tf`; service has `lifecycle ignore_changes
+  = [desired_count]` so TF and autoscaling don't fight). ALB DNS name is recreated fresh
+  on each apply. Last run verified: HTTP 200, `/healthz` ok, ALB round-robin across 2 AZs,
+  and a real scale-out (2→3) via AlarmHigh → ALARM.
 
 ## Done
 
