@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+state_bucket = "aws-devops-dojo-tfstate-850896627732"
+# region / project / app_name default correctly for this dojo.
+# Override these only if your GitHub repo differs:
+# github_owner = "masabni"
+# github_repo  = "aws-devops-dojo"

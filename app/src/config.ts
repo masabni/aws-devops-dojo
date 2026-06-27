@@ -7,6 +7,10 @@ export interface Config {
   // (useful when watching rolling deploys and autoscaling spread traffic across tasks).
   instanceId: string;
   version: string;
+  // /loadtest deliberately burns CPU — handy for the autoscaling lab, but a DoS
+  // foot-gun once the service is internet-facing. OFF by default; flip ENABLE_LOADTEST
+  // on only when you're actively running a scaling test.
+  enableLoadtest: boolean;
 }
 
 export function loadConfig(): Config {
@@ -16,5 +20,6 @@ export function loadConfig(): Config {
     storeBackend: "memory",
     instanceId: process.env.INSTANCE_ID ?? process.env.HOSTNAME ?? "local",
     version: process.env.APP_VERSION ?? "dev",
+    enableLoadtest: process.env.ENABLE_LOADTEST === "true",
   };
 }

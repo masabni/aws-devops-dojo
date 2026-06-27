@@ -23,16 +23,20 @@ export function healthRouter(cfg: Config): Router {
 
   // Deliberate CPU burn so we can trigger target-tracking autoscaling on demand
   // in the scaling phase. ?ms= controls how long to spin (capped to keep it safe).
-  router.get("/loadtest", (req, res) => {
-    const ms = Math.min(Number(req.query.ms ?? 200), 2000);
-    const until = Date.now() + ms;
-    let iterations = 0;
-    while (Date.now() < until) {
-      Math.sqrt(Math.random() * Math.random());
-      iterations++;
-    }
-    res.json({ burnedMs: ms, iterations, instanceId: cfg.instanceId });
-  });
+  // Gated behind ENABLE_LOADTEST: when off, the route isn't registered at all, so
+  // a request just 404s — no way to DoS the internet-facing service by accident.
+  if (cfg.enableLoadtest) {
+    router.get("/loadtest", (req, res) => {
+      const ms = Math.min(Number(req.query.ms ?? 200), 2000);
+      const until = Date.now() + ms;
+      let iterations = 0;
+      while (Date.now() < until) {
+        Math.sqrt(Math.random() * Math.random());
+        iterations++;
+      }
+      res.json({ burnedMs: ms, iterations, instanceId: cfg.instanceId });
+    });
+  }
 
   return router;
 }

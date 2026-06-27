@@ -2,12 +2,16 @@
 
 > Single source of truth for progress. Update this at the end of every session.
 
-**Last updated:** 2026-05-31 (Phase 3 done & code committed; ecs stack DESTROYED — $0 standing)
+**Last updated:** 2026-06-27 (Phase 4 CI/CD code complete — NOT yet applied; $0 standing)
 
 ## Current phase
 
-**Phases 2 + 3 code complete and committed. `infra/ecs` was applied, verified, then
-DESTROYED at session end. Next up: Phase 4 (CI/CD, GitHub Actions).**
+**Phase 4 (CI/CD via GitHub Actions) CODE COMPLETE, not yet applied.** Built: `infra/cicd`
+(GitHub OIDC provider + scoped deploy role), `.github/workflows/ci.yml` (PR test/build) and
+`deploy.yml` (manual deploy), `/loadtest` now gated behind `ENABLE_LOADTEST`, and ecs service
+`ignore_changes` extended to `task_definition` so CI owns image rollouts. Next: `terraform
+apply infra/cicd` ($0), set the `AWS_DEPLOY_ROLE_ARN` repo variable, then exercise the
+pipeline (needs `infra/ecs` applied for the deploy step).
 
 > ✅ **Nothing billable running.** The `infra/ecs` stack (ECR/cluster/service/ALB/
 > autoscaling) was torn down — verified no ALBs, ECS clusters, ECR repos, or NAT
@@ -47,13 +51,26 @@ DESTROYED at session end. Next up: Phase 4 (CI/CD, GitHub Actions).**
       real scale-out (2→3) via AlarmHigh→ALARM and the scaling-activities audit log.
       Lesson logged: `/loadtest` CPU-burn blocks Node's event loop → starves `/healthz` →
       ECS recycles busy tasks. Gate `/loadtest` before Phase 4 internet exposure.
+- [x] **Phase 4 CODE COMPLETE (not applied)** — `infra/cicd` (GitHub OIDC provider + IAM
+      `aws-devops-dojo-github-deploy` role, trust scoped to `repo:masabni/aws-devops-dojo:ref:
+      refs/heads/main`, perms = ECR push to `tasklet` + ECS deploy + PassRole on the execution
+      role). `.github/workflows/ci.yml` (PR: typecheck/test/build) + `deploy.yml` (manual
+      `workflow_dispatch`: OIDC → build SHA-tagged image → push → register task-def → roll
+      service). `/loadtest` gated behind `ENABLE_LOADTEST` (off by default). ecs service now
+      `ignore_changes = [desired_count, task_definition]`. App tests 22/22, 100% coverage;
+      both TF stacks `validate` clean. **Not yet applied — OIDC role is $0 when applied.**
 
 ## Next actions (in order)
 
-1. **First: if ending the session, `cd infra/ecs && terraform destroy`** (billable ALB+tasks).
-2. Start Phase 4 (CI/CD with GitHub Actions) — see `docs/phases/phase-4-cicd-github-actions.md`.
-   GitHub OIDC role (keyless auth), workflow: test on PR → build/push image to ECR →
-   update ECS service. Gate `/loadtest` behind a flag as part of this (it's internet-reachable).
+1. `cd infra/cicd && terraform init -backend-config=backend.hcl && terraform apply` ($0 role).
+2. `terraform output -raw github_actions_role_arn` → `gh variable set AWS_DEPLOY_ROLE_ARN`.
+3. Commit + push Phase 4 code, open a PR → watch `ci.yml` run green.
+4. To test the deploy end-to-end: apply `infra/ecs` (BILLABLE) → run the deploy workflow
+   manually → confirm rolling deploy → **`terraform destroy infra/ecs` at session end.**
+5. Then Phase 5 (DynamoDB) — see `docs/phases/phase-5-dynamodb.md`.
+
+> **If ending the session: `cd infra/ecs && terraform destroy`** only if you applied it.
+> The `infra/cicd` OIDC role is free — leave it up.
 
 ## Known follow-ups / tech debt
 

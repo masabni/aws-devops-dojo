@@ -1,0 +1,82 @@
+name: Deploy to ECS
+
+# Manual trigger only (workflow_dispatch). The ECS stack is destroyed between dojo
+# sessions, so auto-deploy-on-push would just fail against missing infra. Run this
+# by hand from the Actions tab AFTER you've `terraform apply`-ed infra/ecs.
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to build/deploy (defaults to the commit SHA)."
+        required: false
+
+# Required for OIDC: lets the job request a GitHub-signed token to swap for AWS creds.
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY: tasklet
+  ECS_CLUSTER: aws-devops-dojo-tasklet
+  ECS_SERVICE: aws-devops-dojo-tasklet
+  TASK_FAMILY: aws-devops-dojo-tasklet
+  CONTAINER_NAME: tasklet
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Exchange the GitHub OIDC token for short-lived AWS credentials. No stored keys.
+      # AWS_DEPLOY_ROLE_ARN is a (non-secret) repo variable = the cicd stack's output.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve image tag
+        id: tag
+        run: echo "value=${{ github.event.inputs.image_tag || github.sha }}" >> "$GITHUB_OUTPUT"
+
+      # Fargate runs amd64; build explicitly for it (the runner is amd64 too, but be explicit).
+      - name: Build and push image
+        id: build
+        run: |
+          IMAGE="${{ steps.ecr.outputs.registry }}/${ECR_REPOSITORY}:${{ steps.tag.outputs.value }}"
+          docker build --platform linux/amd64 -t "$IMAGE" app
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      # Pull the live task def, strip read-only fields IAM/Register won't accept, save it.
+      - name: Download current task definition
+        run: |
+          aws ecs describe-task-definition --task-definition "$TASK_FAMILY" \
+            --query 'taskDefinition' \
+          | jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+          > task-def.json
+
+      # Swap only the container image into the downloaded task def → rendered file.
+      - name: Render new task definition
+        id: render
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-def.json
+          container-name: ${{ env.CONTAINER_NAME }}
+          image: ${{ steps.build.outputs.image }}
+
+      # Register the new revision and roll the service onto it. Wait for the ALB
+      # health check to pass before reporting success (rolling deploy, zero downtime).
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: ${{ env.ECS_SERVICE }}
+          cluster: ${{ env.ECS_CLUSTER }}
+          wait-for-service-stability: true

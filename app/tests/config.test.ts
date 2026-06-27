@@ -7,6 +7,7 @@ const ENV_KEYS = [
   "INSTANCE_ID",
   "HOSTNAME",
   "APP_VERSION",
+  "ENABLE_LOADTEST",
 ] as const;
 
 describe("loadConfig", () => {
@@ -28,6 +29,7 @@ describe("loadConfig", () => {
     expect(cfg.instanceId).toBe("local");
     expect(cfg.version).toBe("dev");
     expect(cfg.storeBackend).toBe("memory");
+    expect(cfg.enableLoadtest).toBe(false);
   });
 
   it("reads values from the environment", () => {
@@ -35,11 +37,13 @@ describe("loadConfig", () => {
     process.env.NODE_ENV = "production";
     process.env.INSTANCE_ID = "task-abc";
     process.env.APP_VERSION = "1.2.3";
+    process.env.ENABLE_LOADTEST = "true";
     const cfg = loadConfig();
     expect(cfg.port).toBe(8080);
     expect(cfg.env).toBe("production");
     expect(cfg.instanceId).toBe("task-abc");
     expect(cfg.version).toBe("1.2.3");
+    expect(cfg.enableLoadtest).toBe(true);
   });
 
   it("falls back to HOSTNAME for instanceId when INSTANCE_ID is unset", () => {

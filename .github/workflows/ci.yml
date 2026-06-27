@@ -1,0 +1,42 @@
+name: CI
+
+# Test + typecheck + build on every PR, and on pushes to non-main branches.
+# (main lands via PR, so this avoids running the same checks twice on merge.)
+# No AWS access here — CI never touches the cloud; that's the deploy workflow's job.
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+# Least privilege: CI only reads the repo (checkout) — no writes, no cloud.
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install deps (clean, lockfile-exact)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build
