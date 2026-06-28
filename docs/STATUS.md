@@ -2,25 +2,30 @@
 
 > Single source of truth for progress. Update this at the end of every session.
 
-**Last updated:** 2026-06-28 (Phase 4 CI/CD APPLIED + pushed; CI verified green; $0 standing)
+**Last updated:** 2026-06-28 (Phase 5 DynamoDB DONE + verified live; ecs BILLABLE & running)
 
 ## Current phase
 
-**Phase 4 (CI/CD via GitHub Actions) DONE.** `infra/cicd` (OIDC provider + deploy role)
-APPLIED — $0 standing. Repo variable `AWS_DEPLOY_ROLE_ARN` set. Code committed + pushed to
-`main` (`2fb910f`). **CI workflow verified green on GitHub** (checkout → npm ci → typecheck →
-test 22/22 → build, 21s). The *deploy* workflow is manual and untested end-to-end (needs
-`infra/ecs` applied — that's the optional billable dry-run). Next: **Phase 5 (DynamoDB)**.
+**Phase 5 (DynamoDB) DONE and verified live.** `infra/data` (on-demand table
+`aws-devops-dojo-tasklet`, PITR) applied — $0. App `DynamoStore` + `createStore` factory
+(`STORE_BACKEND=dynamodb`). `infra/ecs` task role (least-priv DynamoDB on the table) +
+task-def env applied; `infra/cicd` PassRole extended to the task role. Code on `main`
+(`2161ace`), deploy pipeline rolled the service to revision `:4`. **Verified:** POST via ALB
+landed in DynamoDB (count 1→2) and 6 reads returned an identical list across both tasks —
+the Phase 2 per-task inconsistency is gone. Next: **Phase 6 (EKS)**.
+
+> ⚠️ **`infra/ecs` is BILLABLE and running right now** (ALB + 2 Fargate tasks). Destroy it at
+> session end: `cd infra/ecs && terraform destroy`. The DynamoDB table (`infra/data`) is ~$0
+> and can stay up — your tasks persist there for next session.
 
 > ℹ️ **Repo is now PUBLIC** (`masabni/aws-devops-dojo`). Changed from private so GitHub
 > Actions minutes are free (private-repo Actions were blocked by an account billing/spending
 > -limit issue). No real secrets are committed (tfvars gitignored; only the non-secret AWS
 > account id + state-bucket name appear). Keep it that way — never commit creds.
 
-> ✅ **Nothing billable running.** The `infra/ecs` stack (ECR/cluster/service/ALB/
-> autoscaling) was torn down — verified no ALBs, ECS clusters, ECR repos, or NAT
-> gateways remain. To resume Phase 2/3 hands-on, re-apply per `infra/ecs/README.md`
-> (apply ECR → build/push `tasklet:v1` → apply rest). Bootstrap + foundation still up at ~$0.
+> ⚠️ **`infra/ecs` is BILLABLE and currently UP** (ALB + 2 Fargate tasks on rev `:4`, now
+> DynamoDB-backed). `cd infra/ecs && terraform destroy` at session end. Bootstrap, foundation,
+> cicd (OIDC role), and data (DynamoDB table) are all ~$0 and stay up.
 
 ## Environment (live)
 
@@ -30,14 +35,16 @@ test 22/22 → build, 21s). The *deploy* workflow is manual and untested end-to-
 - **VPC:** `vpc-0d19b613ce741f0f0` (`10.20.0.0/16`), NAT **disabled** (cost-safe).
   - Public subnets: `subnet-0374cd6a7b3205d80`, `subnet-0283735914e7229ab`.
   - Private subnets: `subnet-01fbbde296655135d`, `subnet-04981791c60efbb3b`.
-- **ECS / autoscaling (Phase 2+3): DESTROYED at session end — not currently running.**
-  Code lives in `infra/ecs/` (committed). When re-applied it creates: cluster + service
-  `aws-devops-dojo-tasklet` (2 Fargate tasks, 256/512, public subnets, image `tasklet:v1`),
-  internet-facing ALB, ECR repo `…/tasklet` (keep-last-5), and Application Auto Scaling
-  (min 2 / max 6, CPU target 50%, `autoscaling.tf`; service has `lifecycle ignore_changes
-  = [desired_count]` so TF and autoscaling don't fight). ALB DNS name is recreated fresh
-  on each apply. Last run verified: HTTP 200, `/healthz` ok, ALB round-robin across 2 AZs,
-  and a real scale-out (2→3) via AlarmHigh → ALARM.
+- **ECS / autoscaling (Phase 2+3+5): UP & BILLABLE.** cluster + service
+  `aws-devops-dojo-tasklet`, 2 Fargate tasks (256/512) on task-def rev `:4` (image built by
+  the deploy pipeline, `STORE_BACKEND=dynamodb`), internet-facing ALB
+  `aws-devops-dojo-tasklet-1161158689.eu-central-1.elb.amazonaws.com`, ECR `…/tasklet`,
+  Application Auto Scaling (min 2 / max 6, CPU 50%). Service `ignore_changes =
+  [desired_count, task_definition]` (autoscaling owns count, CI owns image). **Destroy at
+  session end.**
+- **DynamoDB (Phase 5): UP, ~$0.** Table `aws-devops-dojo-tasklet` (on-demand, PITR,
+  `PK = TASK#<id>`). The app's task role grants GetItem/PutItem/DeleteItem/Scan on it only.
+  Tasks created via the app persist here across sessions. Safe to leave up.
 
 ## Done
 
@@ -64,27 +71,32 @@ test 22/22 → build, 21s). The *deploy* workflow is manual and untested end-to-
       gated behind `ENABLE_LOADTEST` (off by default). ecs service `ignore_changes =
       [desired_count, task_definition]`. App tests 22/22, 100% coverage; both TF stacks
       `validate` clean. **CI verified GREEN on GitHub (run 28323899990, 21s).** Repo made
-      PUBLIC for free Actions minutes. **deploy.yml NOT yet exercised end-to-end** (needs
-      `infra/ecs` applied — optional billable dry-run). OIDC role is $0 standing.
+      PUBLIC for free Actions minutes. OIDC role is $0 standing. **deploy.yml later exercised
+      end-to-end in Phase 5 (rolled the service to rev :4) — it works.**
+- [x] **Phase 5 APPLIED + verified** — `infra/data` DynamoDB table (on-demand, PITR). App
+      `DynamoStore` (SDK v3 DocumentClient) + `createStore` factory (`STORE_BACKEND`). `infra/ecs`
+      task role (least-priv DynamoDB on the table ARN) + task-def env (`STORE_BACKEND=dynamodb`,
+      `TASKS_TABLE_NAME`, `AWS_REGION`); `infra/cicd` PassRole extended to the task role. 32
+      tests, 100% coverage; 0 prod vulns. Deploy pipeline rolled service to rev `:4`. **Verified
+      live:** POST via ALB → DynamoDB count 1→2; 6 reads identical across both tasks (shared,
+      durable state — Phase 2 inconsistency gone).
 
 ## Next actions (in order)
 
-1. **Phase 5 (DynamoDB)** — see `docs/phases/phase-5-dynamodb.md`. Swap the in-memory store
-   for DynamoDB (single-table design) + add an ECS *task role* (distinct from the execution
-   role) granting the app DynamoDB access.
-2. *(Optional, billable)* Exercise `deploy.yml` end-to-end: apply `infra/ecs` → run the
-   "Deploy to ECS" workflow manually → confirm OIDC auth + rolling deploy → then
-   **`terraform destroy infra/ecs`**.
-
-> **If ending the session: `cd infra/ecs && terraform destroy`** only if you applied it.
-> The `infra/cicd` OIDC role is free — leave it up. Nothing billable is running now.
+1. **If ending the session: `cd infra/ecs && terraform destroy`** (billable ALB + tasks).
+   Leave `infra/data` (DynamoDB) up — ~$0 and your tasks persist there.
+2. **Phase 6 (EKS)** — see `docs/phases/phase-6-eks.md`. Deploy the SAME image to Kubernetes
+   and compare ECS vs EKS hands-on. ⚠️ EKS control plane (~$0.10/hr) + nodes are BILLABLE —
+   destroy same session.
 
 ## Known follow-ups / tech debt
 
 - Backend uses deprecated `dynamodb_table` lock arg. Modern TF (1.10+) locks natively via
   S3 (`use_lockfile = true`) — can switch and drop the DynamoDB table later.
 - `/loadtest` non-numeric `?ms=` returns `burnedMs: null` (no-op); add `Number.isFinite` guard.
-- Gate `/loadtest` behind a flag before it's internet-reachable (Phase 2/3).
+  (Lower priority now — `/loadtest` is gated off by default behind `ENABLE_LOADTEST` since Phase 4.)
+- `DynamoStore.list()` uses Scan with no pagination (1 MB cap) and `toggle()` is a non-atomic
+  read-modify-write — both fine at dojo scale, documented in-code; revisit if data grows.
 
 ## Session-end checklist (cost safety)
 
