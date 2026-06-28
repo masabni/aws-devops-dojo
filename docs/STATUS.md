@@ -2,21 +2,32 @@
 
 > Single source of truth for progress. Update this at the end of every session.
 
-**Last updated:** 2026-06-28 (Phase 5 DynamoDB DONE + verified live; ecs BILLABLE & running)
+**Last updated:** 2026-06-29 (Phase 5 DONE; ecs DESTROYED — $0 standing; Phase 6 EKS planned)
 
 ## Current phase
 
-**Phase 5 (DynamoDB) DONE and verified live.** `infra/data` (on-demand table
-`aws-devops-dojo-tasklet`, PITR) applied — $0. App `DynamoStore` + `createStore` factory
-(`STORE_BACKEND=dynamodb`). `infra/ecs` task role (least-priv DynamoDB on the table) +
-task-def env applied; `infra/cicd` PassRole extended to the task role. Code on `main`
-(`2161ace`), deploy pipeline rolled the service to revision `:4`. **Verified:** POST via ALB
-landed in DynamoDB (count 1→2) and 6 reads returned an identical list across both tasks —
-the Phase 2 per-task inconsistency is gone. Next: **Phase 6 (EKS)**.
+**Phase 5 (DynamoDB) DONE and verified live; `infra/ecs` DESTROYED at session end.**
+Phase 6 (EKS) is **planned but not yet built** — decisions locked below.
 
-> ⚠️ **`infra/ecs` is BILLABLE and running right now** (ALB + 2 Fargate tasks). Destroy it at
-> session end: `cd infra/ecs && terraform destroy`. The DynamoDB table (`infra/data`) is ~$0
-> and can stay up — your tasks persist there for next session.
+- Phase 5 recap: `infra/data` DynamoDB table applied ($0). App `DynamoStore` + `createStore`
+  factory (`STORE_BACKEND=dynamodb`). `infra/ecs` task role + task-def env; `infra/cicd`
+  PassRole extended to the task role. Verified live (POST via ALB → DynamoDB; reads consistent
+  across tasks). Code on `main` (`2161ace`).
+- **Phase 6 decisions (locked):** compute = **EKS on Fargate** (no nodes; Fargate profiles;
+  parallels ECS Fargate — the learning goal). Exposure = **ALB Ingress via the AWS Load
+  Balancer Controller**. IRSA for DynamoDB (the EKS parallel to the ECS task role).
+  Quirks to handle: patch CoreDNS to run on Fargate (kube-system Fargate profile), ALB
+  `target-type: ip`, LB Controller + its own IRSA.
+- **Phase 6 next step (build while $0, apply in one focused billable push, destroy same day):**
+  write `infra/eks/` Terraform (cluster + Fargate profiles + OIDC/IRSA + LB Controller IAM)
+  + Helm install + k8s manifests (Deployment 2 replicas, Service, Ingress→ALB, probes →
+  `/healthz` `/readyz`), validate, THEN apply → deploy → verify → `terraform destroy`.
+
+> ✅ **Nothing billable running.** `infra/ecs` torn down (verified: 0 ALBs/ECS clusters/ECR
+> repos/NAT GWs). Bootstrap, foundation, cicd (OIDC role), and **data (DynamoDB table
+> `aws-devops-dojo-tasklet`, holds your tasks)** stay up at ~$0.
+> ⚠️ **Phase 6 EKS is the priciest phase: control plane ~$0.10/hr even idle — apply and
+> `terraform destroy` the SAME session.**
 
 > ℹ️ **Repo is now PUBLIC** (`masabni/aws-devops-dojo`). Changed from private so GitHub
 > Actions minutes are free (private-repo Actions were blocked by an account billing/spending
@@ -35,13 +46,12 @@ the Phase 2 per-task inconsistency is gone. Next: **Phase 6 (EKS)**.
 - **VPC:** `vpc-0d19b613ce741f0f0` (`10.20.0.0/16`), NAT **disabled** (cost-safe).
   - Public subnets: `subnet-0374cd6a7b3205d80`, `subnet-0283735914e7229ab`.
   - Private subnets: `subnet-01fbbde296655135d`, `subnet-04981791c60efbb3b`.
-- **ECS / autoscaling (Phase 2+3+5): UP & BILLABLE.** cluster + service
-  `aws-devops-dojo-tasklet`, 2 Fargate tasks (256/512) on task-def rev `:4` (image built by
-  the deploy pipeline, `STORE_BACKEND=dynamodb`), internet-facing ALB
-  `aws-devops-dojo-tasklet-1161158689.eu-central-1.elb.amazonaws.com`, ECR `…/tasklet`,
-  Application Auto Scaling (min 2 / max 6, CPU 50%). Service `ignore_changes =
-  [desired_count, task_definition]` (autoscaling owns count, CI owns image). **Destroy at
-  session end.**
+- **ECS / autoscaling (Phase 2+3+5): DESTROYED — not running.** Code in `infra/ecs/`
+  (committed). Re-apply recreates cluster + service `aws-devops-dojo-tasklet` (2 Fargate
+  tasks, 256/512, `STORE_BACKEND=dynamodb`), internet-facing ALB, ECR `…/tasklet`, task +
+  execution roles, Application Auto Scaling (min 2 / max 6, CPU 50%). Re-apply is two-step
+  (ECR target → build/push image → full apply) since `force_delete` removed the ECR repo.
+  ALB DNS recreated fresh each apply. **BILLABLE when up.**
 - **DynamoDB (Phase 5): UP, ~$0.** Table `aws-devops-dojo-tasklet` (on-demand, PITR,
   `PK = TASK#<id>`). The app's task role grants GetItem/PutItem/DeleteItem/Scan on it only.
   Tasks created via the app persist here across sessions. Safe to leave up.
@@ -83,11 +93,21 @@ the Phase 2 per-task inconsistency is gone. Next: **Phase 6 (EKS)**.
 
 ## Next actions (in order)
 
-1. **If ending the session: `cd infra/ecs && terraform destroy`** (billable ALB + tasks).
-   Leave `infra/data` (DynamoDB) up — ~$0 and your tasks persist there.
-2. **Phase 6 (EKS)** — see `docs/phases/phase-6-eks.md`. Deploy the SAME image to Kubernetes
-   and compare ECS vs EKS hands-on. ⚠️ EKS control plane (~$0.10/hr) + nodes are BILLABLE —
-   destroy same session.
+1. **Phase 6 (EKS) — build phase (FREE, do first):** write `infra/eks/` Terraform for the
+   chosen design (EKS on **Fargate** + **ALB Ingress via LB Controller** + **IRSA** for
+   DynamoDB). Pieces: EKS cluster (public endpoint, public subnets); Fargate profiles for
+   `kube-system` (CoreDNS) + the app namespace; OIDC provider; IRSA roles for (a) the app
+   (DynamoDB) and (b) the AWS Load Balancer Controller; Helm install of the LB Controller;
+   k8s manifests (namespace, IRSA-annotated SA, Deployment 2 replicas, Service,
+   Ingress→ALB `target-type: ip`, probes → `/healthz` `/readyz`). Patch CoreDNS to run on
+   Fargate. `terraform validate` + commit while $0.
+2. **Phase 6 — billable push (one session):** apply `infra/eks` → install controller → apply
+   manifests → verify app via the ALB + DynamoDB shared state from EKS → **`terraform destroy`
+   the SAME session** (control plane ~$0.10/hr even idle).
+3. Then Phase 7 (Aurora + "which DB when").
+
+> See `docs/phases/phase-6-eks.md` for the interview angle (ECS vs EKS, IRSA vs task roles,
+> k8s probes ↔ ALB health checks).
 
 ## Known follow-ups / tech debt
 
