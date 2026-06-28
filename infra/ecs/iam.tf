@@ -23,3 +23,35 @@ resource "aws_iam_role_policy_attachment" "execution" {
   role       = aws_iam_role.execution.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
+
+# --- ECS TASK role (Phase 5) ---
+# Used by the APPLICATION code at runtime (the SDK calls DynamoDB with these creds),
+# as opposed to the EXECUTION role above (used by the ECS agent to pull the image and
+# ship logs). Keeping them separate is the whole point: the platform's permissions and
+# the app's permissions have different blast radii. Same trust (ecs-tasks) as execution.
+resource "aws_iam_role" "task" {
+  name               = "${local.name}-task"
+  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
+}
+
+# Least-privilege: only the CRUD actions the DynamoStore actually issues, scoped to the
+# single Tasklet table. (No Query/UpdateItem yet — add them when an access pattern needs
+# them, not before.)
+data "aws_iam_policy_document" "task_dynamodb" {
+  statement {
+    sid = "TaskletTableAccess"
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:PutItem",
+      "dynamodb:DeleteItem",
+      "dynamodb:Scan",
+    ]
+    resources = [local.table_arn]
+  }
+}
+
+resource "aws_iam_role_policy" "task_dynamodb" {
+  name   = "${local.name}-dynamodb"
+  role   = aws_iam_role.task.id
+  policy = data.aws_iam_policy_document.task_dynamodb.json
+}

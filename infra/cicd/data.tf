@@ -17,6 +17,9 @@ locals {
   ecs_cluster_arn    = "arn:aws:ecs:${var.region}:${local.account_id}:cluster/${local.ecs_name}"
   ecs_service_arn    = "arn:aws:ecs:${var.region}:${local.account_id}:service/${local.ecs_name}/${local.ecs_name}"
   execution_role_arn = "arn:aws:iam::${local.account_id}:role/${local.ecs_name}-execution"
+  # Phase 5: the task definition now also references a task role; the deploy pipeline
+  # registers new revisions, so it must be allowed to pass this role too.
+  task_role_arn = "arn:aws:iam::${local.account_id}:role/${local.ecs_name}-task"
 
   # OIDC 'sub' claim GitHub sends for a run on our branch. Scoping to this exact value
   # means only workflows from <owner>/<repo> running on <deploy_branch> can assume the role.

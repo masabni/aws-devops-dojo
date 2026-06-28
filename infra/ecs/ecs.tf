@@ -21,7 +21,8 @@ resource "aws_ecs_task_definition" "app" {
   cpu                      = var.task_cpu
   memory                   = var.task_memory
   execution_role_arn       = aws_iam_role.execution.arn
-  # No task_role_arn yet — the app needs no AWS API access until Phase 5 (DynamoDB).
+  # Phase 5: the app now calls DynamoDB, so it gets a task role (its own AWS identity).
+  task_role_arn = aws_iam_role.task.arn
 
   container_definitions = jsonencode([
     {
@@ -37,7 +38,11 @@ resource "aws_ecs_task_definition" "app" {
       environment = [
         { name = "PORT", value = tostring(var.container_port) },
         { name = "NODE_ENV", value = "production" },
-        { name = "APP_VERSION", value = var.image_tag }
+        { name = "APP_VERSION", value = var.image_tag },
+        # Phase 5: switch the app to the shared DynamoDB store.
+        { name = "STORE_BACKEND", value = "dynamodb" },
+        { name = "TASKS_TABLE_NAME", value = local.table_name },
+        { name = "AWS_REGION", value = var.region }
       ]
       logConfiguration = {
         logDriver = "awslogs"

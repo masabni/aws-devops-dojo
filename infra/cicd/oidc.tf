@@ -98,12 +98,12 @@ data "aws_iam_policy_document" "deploy" {
     }
   }
 
-  # The new task-def revision references the ECS execution role, so the deployer must
-  # be allowed to pass THAT role — and only to ECS. (Phase 5 adds a task role here too.)
+  # A task-def revision references the ECS execution role AND (Phase 5) the task role,
+  # so the deployer must be allowed to pass BOTH — and only to ECS.
   statement {
-    sid       = "PassExecutionRole"
+    sid       = "PassEcsRoles"
     actions   = ["iam:PassRole"]
-    resources = [local.execution_role_arn]
+    resources = [local.execution_role_arn, local.task_role_arn]
 
     condition {
       test     = "StringEquals"

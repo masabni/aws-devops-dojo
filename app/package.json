@@ -13,6 +13,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1075.0",
+    "@aws-sdk/lib-dynamodb": "^3.1075.0",
     "express": "^4.21.2"
   },
   "devDependencies": {
@@ -20,6 +22,7 @@
     "@types/node": "^22.10.5",
     "@types/supertest": "^6.0.2",
     "@vitest/coverage-v8": "^2.1.9",
+    "aws-sdk-client-mock": "^4.1.0",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3",

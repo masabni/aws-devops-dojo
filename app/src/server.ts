@@ -1,9 +1,9 @@
 import { loadConfig } from "./config";
-import { MemoryStore } from "./store/memoryStore";
+import { createStore } from "./store";
 import { createApp } from "./app";
 
 const cfg = loadConfig();
-const store = new MemoryStore();
+const store = createStore(cfg);
 const app = createApp(cfg, store);
 
 const server = app.listen(cfg.port, () => {

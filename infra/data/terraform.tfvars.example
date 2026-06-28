@@ -1,0 +1,4 @@
+# Copy to terraform.tfvars (gitignored). All values default correctly for this dojo;
+# this file exists so the stack can be applied with `-var-file` if you prefer.
+# region   = "eu-central-1"
+# app_name = "tasklet"

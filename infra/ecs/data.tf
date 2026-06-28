@@ -13,10 +13,23 @@ data "terraform_remote_state" "foundation" {
   }
 }
 
+# Phase 5: pull the DynamoDB table name + ARN from the data stack so the task role
+# scopes to exactly that table and the app gets the table name via env.
+data "terraform_remote_state" "data" {
+  backend = "s3"
+  config = {
+    bucket = var.state_bucket
+    key    = "data/terraform.tfstate"
+    region = var.region
+  }
+}
+
 locals {
   name            = "${var.project}-${var.app_name}"
   vpc_id          = data.terraform_remote_state.foundation.outputs.vpc_id
   public_subnets  = data.terraform_remote_state.foundation.outputs.public_subnet_ids
   ecr_repo_url    = aws_ecr_repository.app.repository_url
   container_image = "${aws_ecr_repository.app.repository_url}:${var.image_tag}"
+  table_name      = data.terraform_remote_state.data.outputs.table_name
+  table_arn       = data.terraform_remote_state.data.outputs.table_arn
 }
